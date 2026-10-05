@@ -43,6 +43,38 @@ export const InstallmentModal: React.FC<InstallmentModalProps> = ({
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [isDebt, setIsDebt] = useState(initialData?.is_debt || false);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setDescription(initialData.description || '');
+        setTotalAmount(initialData.total_amount?.toString() || '');
+        setTotalInstallments(initialData.total_installments?.toString() || '12');
+        setInstallmentAmount(initialData.installment_amount?.toString() || '');
+        setPaidCount(initialData.paid_installments_count?.toString() || '0');
+        setPurchaseDate(initialData.purchase_date || new Date().toISOString().split('T')[0]);
+        setDueDay(initialData.due_day?.toString() || '10');
+        setFirstDate(initialData.first_installment_date || new Date().toISOString().split('T')[0]);
+        setCategory(initialData.category || 'Tecnologia');
+        setCardName(initialData.card_name || 'Cartão Principal');
+        setNotes(initialData.notes || '');
+        setIsDebt(initialData.is_debt || false);
+      } else {
+        setDescription('');
+        setTotalAmount('');
+        setTotalInstallments('12');
+        setInstallmentAmount('');
+        setPaidCount('0');
+        setPurchaseDate(new Date().toISOString().split('T')[0]);
+        setDueDay('10');
+        setFirstDate(new Date().toISOString().split('T')[0]);
+        setCategory('Tecnologia');
+        setCardName('Cartão Principal');
+        setNotes('');
+        setIsDebt(false);
+      }
+    }
+  }, [isOpen, initialData]);
+
   if (!isOpen) return null;
 
   // Cálculo automático do valor da parcela quando totalAmount ou totalInstallments mudarem

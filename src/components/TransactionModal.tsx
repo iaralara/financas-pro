@@ -35,6 +35,32 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialData?.payment_method || 'PIX');
   const [notes, setNotes] = useState(initialData?.notes || '');
 
+  // Sempre que abrir para novo registro ou mudar de item, limpar ou carregar os campos corretos
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setSource(initialData.source || '');
+        setDescription(initialData.description || '');
+        setAmount(initialData.amount?.toString() || '');
+        setType(initialData.type || 'expense');
+        setCategory(initialData.category || 'Mercado');
+        setDate(initialData.date || new Date().toISOString().split('T')[0]);
+        setPaymentMethod(initialData.payment_method || 'PIX');
+        setNotes(initialData.notes || '');
+      } else {
+        // Limpar tudo para um novo cadastro
+        setSource('');
+        setDescription('');
+        setAmount('');
+        setType('expense');
+        setCategory('Mercado');
+        setDate(new Date().toISOString().split('T')[0]);
+        setPaymentMethod('PIX');
+        setNotes('');
+      }
+    }
+  }, [isOpen, initialData]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -52,6 +78,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       notes,
       source: type === 'income' ? source : undefined,
     });
+
+    // Limpar os campos para a próxima transação não vir preenchida
+    setSource('');
+    setDescription('');
+    setAmount('');
+    setNotes('');
     onClose();
   };
 
