@@ -46,8 +46,21 @@ export const useAuth = () => useContext(AuthContext);
 export const useData = () => useContext(DataContext);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Identificador do dispositivo inicializado de forma imediata (síncrona)
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    let deviceId = localStorage.getItem('finance_device_id');
+    if (!deviceId) {
+      deviceId = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+      localStorage.setItem('finance_device_id', deviceId);
+    }
+    return {
+      id: deviceId,
+      email: 'local@device',
+      full_name: 'Meu Dispositivo',
+    };
+  });
+
+  const [loading, setLoading] = useState(false);
   const isMockMode = !isSupabaseConfigured();
 
   // Olho para ocultar/mostrar valores
@@ -63,38 +76,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [installments, setInstallments] = useState<InstallmentPurchase[]>([]);
-  const [monthlyPlans, setMonthlyPlans] = useState<Record<string, MonthlyPlan>>({});
   const [activeMonth, setActiveMonth] = useState<string>(getCurrentMonthYear());
 
-  // Iniciar autenticação local automática por dispositivo: cada pessoa que entra tem seu próprio ID isolado
+  // Dados inicializados imediatamente do localStorage para nunca sofrer delay ou sobrescrita
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const deviceId = localStorage.getItem('finance_device_id');
+    if (!deviceId) return [];
+    const stored = localStorage.getItem(`finance_tx_${deviceId}`);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const [installments, setInstallments] = useState<InstallmentPurchase[]>(() => {
+    const deviceId = localStorage.getItem('finance_device_id');
+    if (!deviceId) return [];
+    const stored = localStorage.getItem(`finance_inst_${deviceId}`);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const [monthlyPlans, setMonthlyPlans] = useState<Record<string, MonthlyPlan>>(() => {
+    const deviceId = localStorage.getItem('finance_device_id');
+    if (!deviceId) return {};
+    const stored = localStorage.getItem(`finance_plans_${deviceId}`);
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  // Salvar sempre que transactions, installments ou monthlyPlans mudarem
   useEffect(() => {
-    let deviceId = localStorage.getItem('finance_device_id');
-    if (!deviceId) {
-      deviceId = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-      localStorage.setItem('finance_device_id', deviceId);
+    if (user?.id && isMockMode) {
+      localStorage.setItem(`finance_tx_${user.id}`, JSON.stringify(transactions));
     }
+  }, [transactions, user?.id, isMockMode]);
 
-    const localUser: UserProfile = {
-      id: deviceId,
-      email: 'local@device',
-      full_name: 'Meu Dispositivo',
-    };
-    setUser(localUser);
-    setLoading(false);
-  }, []);
-
-  // Carregar dados quando usuário mudar
   useEffect(() => {
-    if (user) {
+    if (user?.id && isMockMode) {
+      localStorage.setItem(`finance_inst_${user.id}`, JSON.stringify(installments));
+    }
+  }, [installments, user?.id, isMockMode]);
+
+  useEffect(() => {
+    if (user?.id && isMockMode) {
+      localStorage.setItem(`finance_plans_${user.id}`, JSON.stringify(monthlyPlans));
+    }
+  }, [monthlyPlans, user?.id, isMockMode]);
+
+  // Carregar dados adicionais se for Supabase
+  useEffect(() => {
+    if (!isMockMode && user) {
       loadData();
-    } else {
-      setTransactions([]);
-      setInstallments([]);
-      setMonthlyPlans({});
     }
-  }, [user]);
+  }, [user, isMockMode]);
 
   const loadData = async () => {
     if (!user) return;

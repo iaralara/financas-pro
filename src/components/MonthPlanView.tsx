@@ -111,6 +111,65 @@ export const MonthPlanView: React.FC = () => {
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Sincronizar o formulário sempre que o mês ativo ou o plano salvo for alterado/carregado
+  useEffect(() => {
+    const plan = getPlanForMonth(activeMonth);
+    setAvailableMoney(plan.available_money !== undefined ? plan.available_money.toString() : '0');
+    setIncomeItems(
+      plan.income_items && plan.income_items.length > 0
+        ? plan.income_items
+        : [
+            { id: 'inc_1', source: 'Trabalho Principal', description: 'Salário Mensal', amount: Number(plan.expected_income) || 0 },
+          ]
+    );
+    setPlannedInvestment(plan.planned_investment !== undefined ? plan.planned_investment.toString() : '0');
+    setFinancialGoals(
+      plan.goals && plan.goals.length > 0
+        ? plan.goals
+        : [
+            {
+              id: 'g_1',
+              name: 'Viagem 15 anos Bela',
+              target_amount: 50000,
+              monthly_contribution: 1000,
+              current_saved: 0,
+            },
+          ]
+    );
+    setFixedItems(
+      plan.fixed_items && plan.fixed_items.length > 0
+        ? plan.fixed_items
+        : [
+            { id: '1', name: 'Aluguel / Moradia', amount: 0 },
+            { id: '2', name: 'Energia Elétrica', amount: 0 },
+            { id: '3', name: 'Internet / Telefone', amount: 0 },
+          ]
+    );
+    setVariableItems(
+      plan.variable_items && plan.variable_items.length > 0
+        ? plan.variable_items
+        : [
+            { id: '1', name: 'Supermercado Mensal', amount: 0 },
+            { id: '2', name: 'Transporte / Combustível', amount: 0 },
+            { id: '3', name: 'Farmácia / Cuidados', amount: 0 },
+          ]
+    );
+    setSeasonalItems(plan.seasonal_items || []);
+    setInstallmentsDue(
+      plan.installments_due !== undefined && plan.installments_due !== 0
+        ? plan.installments_due.toString()
+        : installments
+            .filter((i) => i.paid_installments_count < i.total_installments)
+            .reduce((sum, i) => sum + i.installment_amount, 0)
+            .toString()
+    );
+    setGoalsText(plan.goals_text || '');
+    setPctEssential(plan.distribution_percentages?.essential ?? 55);
+    setPctBillsGoals(plan.distribution_percentages?.bills_goals ?? 30);
+    setPctFree(plan.distribution_percentages?.free ?? 10);
+    setPctEducation(plan.distribution_percentages?.education ?? 5);
+  }, [activeMonth, currentPlan.month_year]);
+
   // Cálculos dinâmicos a partir da soma dos itens especificados
   const totalIncomeCalculated = incomeItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
   const totalFixedCalculated = fixedItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);

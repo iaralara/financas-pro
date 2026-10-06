@@ -29,6 +29,16 @@ export const MonthClosingView: React.FC = () => {
   const [lessonsLearned, setLessonsLearned] = useState(currentPlan.lessons_learned || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  React.useEffect(() => {
+    const plan = getPlanForMonth(activeMonth);
+    setWentWell(plan.reflection_went_well || '');
+    setWentWrong(plan.reflection_went_wrong || '');
+    setOverspent(plan.reflection_overspent || '');
+    setHabitsKeep(plan.reflection_habits_keep || '');
+    setHabitsAvoid(plan.reflection_habits_avoid || '');
+    setLessonsLearned(plan.lessons_learned || '');
+  }, [activeMonth, currentPlan.month_year]);
+
   // Transações do mês selecionado
   const monthTxs = transactions.filter((t) => t.date.startsWith(activeMonth));
 
