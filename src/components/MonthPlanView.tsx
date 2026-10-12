@@ -201,11 +201,40 @@ export const MonthPlanView: React.FC = () => {
     { name: '5% Educação', value: (totalBase * pctEducation) / 100, color: '#8b5cf6' },
   ];
 
+  // Função auxiliar para salvar o plano automaticamente no context e localStorage
+  const autoPersistPlan = (patch: Partial<MonthlyPlan>) => {
+    const updatedPlan: MonthlyPlan = {
+      ...currentPlan,
+      month_year: activeMonth,
+      available_money: nAvailable,
+      expected_income: nIncome,
+      planned_investment: nInvest,
+      fixed_expenses: nFixed,
+      expected_expenses: nExpected,
+      installments_due: nInst,
+      seasonal_expenses: nSeasonal,
+      goals_text: goalsText,
+      distribution_percentages: {
+        essential: pctEssential,
+        bills_goals: pctBillsGoals,
+        free: pctFree,
+        education: pctEducation,
+      },
+      income_items: incomeItems,
+      fixed_items: fixedItems,
+      variable_items: variableItems,
+      seasonal_items: seasonalItems,
+      goals: financialGoals,
+      ...patch,
+    };
+    saveMonthlyPlan(updatedPlan);
+  };
+
   // Handlers para adicionar itens
   const handleAddIncome = () => {
     if (!newIncSource && !newIncDesc) return;
     const amount = parseFloat(newIncAmount.replace(',', '.')) || 0;
-    setIncomeItems([
+    const updated = [
       ...incomeItems,
       {
         id: `inc_${Date.now()}`,
@@ -213,74 +242,102 @@ export const MonthPlanView: React.FC = () => {
         description: newIncDesc || 'Receita',
         amount,
       },
-    ]);
+    ];
+    setIncomeItems(updated);
+    autoPersistPlan({ income_items: updated, expected_income: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
     setNewIncSource('');
     setNewIncDesc('');
     setNewIncAmount('');
   };
 
   const handleRemoveIncome = (id: string) => {
-    setIncomeItems(incomeItems.filter((i) => i.id !== id));
+    const updated = incomeItems.filter((i) => i.id !== id);
+    setIncomeItems(updated);
+    autoPersistPlan({ income_items: updated, expected_income: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleUpdateIncome = (id: string, amount: number) => {
-    setIncomeItems(incomeItems.map((i) => (i.id === id ? { ...i, amount } : i)));
+    const updated = incomeItems.map((i) => (i.id === id ? { ...i, amount } : i));
+    setIncomeItems(updated);
+    autoPersistPlan({ income_items: updated, expected_income: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleAddFixed = () => {
     if (!newFixedName) return;
     const amount = parseFloat(newFixedAmount.replace(',', '.')) || 0;
-    setFixedItems([...fixedItems, { id: `fix_${Date.now()}`, name: newFixedName, amount }]);
+    const updated = [...fixedItems, { id: `fix_${Date.now()}`, name: newFixedName, amount }];
+    setFixedItems(updated);
+    autoPersistPlan({ fixed_items: updated, fixed_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
     setNewFixedName('');
     setNewFixedAmount('');
   };
 
   const handleRemoveFixed = (id: string) => {
-    setFixedItems(fixedItems.filter((i) => i.id !== id));
+    const updated = fixedItems.filter((i) => i.id !== id);
+    setFixedItems(updated);
+    autoPersistPlan({ fixed_items: updated, fixed_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleUpdateFixed = (id: string, amount: number) => {
-    setFixedItems(fixedItems.map((i) => (i.id === id ? { ...i, amount } : i)));
+    const updated = fixedItems.map((i) => (i.id === id ? { ...i, amount } : i));
+    setFixedItems(updated);
+    autoPersistPlan({ fixed_items: updated, fixed_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleUpdateFixedName = (id: string, name: string) => {
-    setFixedItems(fixedItems.map((i) => (i.id === id ? { ...i, name } : i)));
+    const updated = fixedItems.map((i) => (i.id === id ? { ...i, name } : i));
+    setFixedItems(updated);
+    autoPersistPlan({ fixed_items: updated });
   };
 
   const handleAddVar = () => {
     if (!newVarName) return;
     const amount = parseFloat(newVarAmount.replace(',', '.')) || 0;
-    setVariableItems([...variableItems, { id: `var_${Date.now()}`, name: newVarName, amount }]);
+    const updated = [...variableItems, { id: `var_${Date.now()}`, name: newVarName, amount }];
+    setVariableItems(updated);
+    autoPersistPlan({ variable_items: updated, expected_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
     setNewVarName('');
     setNewVarAmount('');
   };
 
   const handleRemoveVar = (id: string) => {
-    setVariableItems(variableItems.filter((i) => i.id !== id));
+    const updated = variableItems.filter((i) => i.id !== id);
+    setVariableItems(updated);
+    autoPersistPlan({ variable_items: updated, expected_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleUpdateVar = (id: string, amount: number) => {
-    setVariableItems(variableItems.map((i) => (i.id === id ? { ...i, amount } : i)));
+    const updated = variableItems.map((i) => (i.id === id ? { ...i, amount } : i));
+    setVariableItems(updated);
+    autoPersistPlan({ variable_items: updated, expected_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleUpdateVarName = (id: string, name: string) => {
-    setVariableItems(variableItems.map((i) => (i.id === id ? { ...i, name } : i)));
+    const updated = variableItems.map((i) => (i.id === id ? { ...i, name } : i));
+    setVariableItems(updated);
+    autoPersistPlan({ variable_items: updated });
   };
 
   const handleAddSeas = () => {
     if (!newSeasName) return;
     const amount = parseFloat(newSeasAmount.replace(',', '.')) || 0;
-    setSeasonalItems([...seasonalItems, { id: `seas_${Date.now()}`, name: newSeasName, amount }]);
+    const updated = [...seasonalItems, { id: `seas_${Date.now()}`, name: newSeasName, amount }];
+    setSeasonalItems(updated);
+    autoPersistPlan({ seasonal_items: updated, seasonal_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
     setNewSeasName('');
     setNewSeasAmount('');
   };
 
   const handleRemoveSeas = (id: string) => {
-    setSeasonalItems(seasonalItems.filter((i) => i.id !== id));
+    const updated = seasonalItems.filter((i) => i.id !== id);
+    setSeasonalItems(updated);
+    autoPersistPlan({ seasonal_items: updated, seasonal_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleUpdateSeas = (id: string, amount: number) => {
-    setSeasonalItems(seasonalItems.map((i) => (i.id === id ? { ...i, amount } : i)));
+    const updated = seasonalItems.map((i) => (i.id === id ? { ...i, amount } : i));
+    setSeasonalItems(updated);
+    autoPersistPlan({ seasonal_items: updated, seasonal_expenses: updated.reduce((s, i) => s + (Number(i.amount) || 0), 0) });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -557,7 +614,11 @@ export const MonthPlanView: React.FC = () => {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setFinancialGoals(financialGoals.filter((g) => g.id !== goal.id))}
+                          onClick={() => {
+                            const updated = financialGoals.filter((g) => g.id !== goal.id);
+                            setFinancialGoals(updated);
+                            autoPersistPlan({ goals: updated });
+                          }}
                           className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
                           title="Remover meta"
                         >
@@ -637,7 +698,7 @@ export const MonthPlanView: React.FC = () => {
                   const target = parseFloat(newGoalTarget.replace(',', '.')) || 0;
                   const monthly = parseFloat(newGoalMonthly.replace(',', '.')) || 0;
                   const saved = parseFloat(newGoalSaved.replace(',', '.')) || 0;
-                  setFinancialGoals([
+                  const updated = [
                     ...financialGoals,
                     {
                       id: `g_${Date.now()}`,
@@ -646,7 +707,9 @@ export const MonthPlanView: React.FC = () => {
                       monthly_contribution: monthly,
                       current_saved: saved,
                     },
-                  ]);
+                  ];
+                  setFinancialGoals(updated);
+                  autoPersistPlan({ goals: updated });
                   setNewGoalName('');
                   setNewGoalTarget('');
                   setNewGoalMonthly('');
