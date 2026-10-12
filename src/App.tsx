@@ -9,7 +9,7 @@ import {
   Sparkles,
   Mic,
   User,
-  Plus,
+  LogIn,
 } from 'lucide-react';
 import { DashboardView } from './components/DashboardView';
 import { MonthPlanView } from './components/MonthPlanView';
@@ -63,14 +63,29 @@ export const App: React.FC = () => {
               <span className="hidden sm:inline">Voz</span>
             </button>
 
-            {/* Indicador de Espaço Privado e Seguro */}
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-emerald-500/30 text-emerald-400 font-semibold rounded-xl text-xs shadow-xs"
-              title="Seus dados são 100% privados e salvos apenas no seu próprio aparelho."
+            {/* Botão de Conta / Sincronização em Nuvem */}
+            <button
+              onClick={() => setIsAuthOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border shadow-xs ${
+                user
+                  ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500/30'
+              }`}
+              title={user ? `Conectado como ${user.email}` : 'Entrar ou Criar Conta para Sincronizar'}
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Privado no seu Celular/PC</span>
-            </div>
+              {user ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <User className="w-3.5 h-3.5" />
+                  <span className="max-w-[120px] truncate">{user.full_name || user.email.split('@')[0]}</span>
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Entrar / Cadastrar</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </header>

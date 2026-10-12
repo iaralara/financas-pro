@@ -2,14 +2,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Transaction, InstallmentPurchase, MonthlyPlan, UserProfile } from '../types';
 import { getCurrentMonthYear } from '../utils/formatters';
-import { hashPassword } from '../utils/crypto';
-
-interface StoredAccount {
-  id: string;
-  email: string;
-  name: string;
-  passwordHash: string;
-}
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -46,21 +38,12 @@ export const useAuth = () => useContext(AuthContext);
 export const useData = () => useContext(DataContext);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Identificador do dispositivo inicializado de forma imediata (síncrona)
   const [user, setUser] = useState<UserProfile | null>(() => {
-    let deviceId = localStorage.getItem('finance_device_id');
-    if (!deviceId) {
-      deviceId = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-      localStorage.setItem('finance_device_id', deviceId);
-    }
-    return {
-      id: deviceId,
-      email: 'local@device',
-      full_name: 'Meu Dispositivo',
-    };
+    const saved = localStorage.getItem('finance_user_session');
+    return saved ? JSON.parse(saved) : null;
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const isMockMode = !isSupabaseConfigured();
 
   // Olho para ocultar/mostrar valores
@@ -78,108 +61,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeMonth, setActiveMonth] = useState<string>(getCurrentMonthYear());
 
-  // Dados inicializados imediatamente do localStorage para nunca sofrer delay ou sobrescrita
+  // Dados com cache local imediato
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const deviceId = localStorage.getItem('finance_device_id');
-    if (!deviceId) return [];
-    const stored = localStorage.getItem(`finance_tx_${deviceId}`);
-    return stored ? JSON.parse(stored) : [];
+    const cached = localStorage.getItem('finance_tx_cache');
+    return cached ? JSON.parse(cached) : [];
   });
 
   const [installments, setInstallments] = useState<InstallmentPurchase[]>(() => {
-    const deviceId = localStorage.getItem('finance_device_id');
-    if (!deviceId) return [];
-    const stored = localStorage.getItem(`finance_inst_${deviceId}`);
-    return stored ? JSON.parse(stored) : [];
+    const cached = localStorage.getItem('finance_inst_cache');
+    return cached ? JSON.parse(cached) : [];
   });
 
   const [monthlyPlans, setMonthlyPlans] = useState<Record<string, MonthlyPlan>>(() => {
-    const deviceId = localStorage.getItem('finance_device_id');
-    if (!deviceId) return {};
-    const stored = localStorage.getItem(`finance_plans_${deviceId}`);
-    return stored ? JSON.parse(stored) : {};
+    const cached = localStorage.getItem('finance_plans_cache');
+    return cached ? JSON.parse(cached) : {};
   });
 
-  // Salvar sempre que transactions, installments ou monthlyPlans mudarem
+  // Monitorar autenticação do Supabase
   useEffect(() => {
-    if (user?.id && isMockMode) {
-      localStorage.setItem(`finance_tx_${user.id}`, JSON.stringify(transactions));
-    }
-  }, [transactions, user?.id, isMockMode]);
+    // Verificar sessão atual ao inicializar
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const u: UserProfile = {
+          id: session.user.id,
+          email: session.user.email || '',
+          full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+        };
+        setUser(u);
+        localStorage.setItem('finance_user_session', JSON.stringify(u));
+      } else {
+        setUser(null);
+        localStorage.removeItem('finance_user_session');
+      }
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const u: UserProfile = {
+          id: session.user.id,
+          email: session.user.email || '',
+          full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+        };
+        setUser(u);
+        localStorage.setItem('finance_user_session', JSON.stringify(u));
+      } else {
+        setUser(null);
+        localStorage.removeItem('finance_user_session');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Salvar no cache local para rapidez de leitura
+  useEffect(() => {
+    localStorage.setItem('finance_tx_cache', JSON.stringify(transactions));
+  }, [transactions]);
 
   useEffect(() => {
-    if (user?.id && isMockMode) {
-      localStorage.setItem(`finance_inst_${user.id}`, JSON.stringify(installments));
-    }
-  }, [installments, user?.id, isMockMode]);
+    localStorage.setItem('finance_inst_cache', JSON.stringify(installments));
+  }, [installments]);
 
   useEffect(() => {
-    if (user?.id && isMockMode) {
-      localStorage.setItem(`finance_plans_${user.id}`, JSON.stringify(monthlyPlans));
-    }
-  }, [monthlyPlans, user?.id, isMockMode]);
+    localStorage.setItem('finance_plans_cache', JSON.stringify(monthlyPlans));
+  }, [monthlyPlans]);
 
-  // Carregar dados adicionais se for Supabase
+  // Carregar dados sempre que o usuário logado mudar
   useEffect(() => {
-    if (!isMockMode && user) {
+    if (user?.id) {
       loadData();
+    } else {
+      setTransactions([]);
+      setInstallments([]);
+      setMonthlyPlans({});
+      localStorage.removeItem('finance_tx_cache');
+      localStorage.removeItem('finance_inst_cache');
+      localStorage.removeItem('finance_plans_cache');
     }
-  }, [user, isMockMode]);
+  }, [user?.id]);
 
   const loadData = async () => {
     if (!user) return;
 
-    if (isMockMode) {
-      const storedTx = localStorage.getItem(`finance_tx_${user.id}`);
-      const storedInst = localStorage.getItem(`finance_inst_${user.id}`);
-      const storedPlans = localStorage.getItem(`finance_plans_${user.id}`);
+    try {
+      const { data: txs } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false });
 
-      if (storedTx) setTransactions(JSON.parse(storedTx));
-      else {
-        setTransactions([]);
-        localStorage.setItem(`finance_tx_${user.id}`, JSON.stringify([]));
-      }
-
-      if (storedInst) setInstallments(JSON.parse(storedInst));
-      else {
-        setInstallments([]);
-        localStorage.setItem(`finance_inst_${user.id}`, JSON.stringify([]));
-      }
-
-      if (storedPlans) setMonthlyPlans(JSON.parse(storedPlans));
-      else {
-        const initialPlan: Record<string, MonthlyPlan> = {
-          [activeMonth]: {
-            user_id: user.id,
-            month_year: activeMonth,
-            available_money: 0,
-            expected_income: 0,
-            planned_investment: 0,
-            fixed_expenses: 0,
-            expected_expenses: 0,
-            installments_due: 0,
-            seasonal_expenses: 0,
-            goals_text: '',
-            lessons_learned: '',
-            reflection_went_well: '',
-            reflection_went_wrong: '',
-            reflection_overspent: '',
-            reflection_habits_keep: '',
-            reflection_habits_avoid: '',
-            distribution_percentages: { essential: 55, bills_goals: 30, free: 10, education: 5 }
-          }
-        };
-        setMonthlyPlans(initialPlan);
-        localStorage.setItem(`finance_plans_${user.id}`, JSON.stringify(initialPlan));
-      }
-    } else {
-      const { data: txs } = await supabase.from('transactions').select('*').order('date', { ascending: false });
       if (txs) setTransactions(txs);
 
-      const { data: insts } = await supabase.from('installments').select('*').order('created_at', { ascending: false });
+      const { data: insts } = await supabase
+        .from('installments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
       if (insts) setInstallments(insts);
 
-      const { data: plans } = await supabase.from('monthly_plans').select('*');
+      const { data: plans } = await supabase
+        .from('monthly_plans')
+        .select('*')
+        .eq('user_id', user.id);
+
       if (plans) {
         const planMap: Record<string, MonthlyPlan> = {};
         plans.forEach((p) => {
@@ -187,206 +177,132 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         setMonthlyPlans(planMap);
       }
+    } catch (e) {
+      console.error('Erro ao carregar dados do Supabase:', e);
     }
   };
 
   const loginWithPassword = async (email: string, password: string) => {
-    if (isMockMode) {
-      const cleanEmail = email.trim().toLowerCase();
-      const accountsRaw = localStorage.getItem('finance_accounts_db');
-      const accounts: StoredAccount[] = accountsRaw ? JSON.parse(accountsRaw) : [];
-      
-      const pwdHash = await hashPassword(password);
-      const found = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
-
-      if (!found) {
-        return { error: 'E-mail não encontrado. Clique na aba "Criar Nova Conta" para se cadastrar.' };
-      }
-
-      if (found.passwordHash !== pwdHash) {
-        return { error: 'Senha incorreta. Verifique e tente novamente.' };
-      }
-
-      const loggedUser = { id: found.id, email: found.email, full_name: found.name };
-      localStorage.setItem('finance_current_user', JSON.stringify(loggedUser));
-      setUser(loggedUser);
-      return {};
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { error: error.message };
-      return {};
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) return { error: error.message };
+    if (data.user) {
+      const u: UserProfile = {
+        id: data.user.id,
+        email: data.user.email || '',
+        full_name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0],
+      };
+      setUser(u);
+      localStorage.setItem('finance_user_session', JSON.stringify(u));
     }
+    return {};
   };
 
   const signUpWithPassword = async (email: string, password: string, name?: string) => {
-    if (isMockMode) {
-      const cleanEmail = email.trim().toLowerCase();
-      if (!cleanEmail || !password || password.length < 4) {
-        return { error: 'Informe um e-mail válido e uma senha com pelo menos 4 dígitos.' };
-      }
-
-      const accountsRaw = localStorage.getItem('finance_accounts_db');
-      const accounts: StoredAccount[] = accountsRaw ? JSON.parse(accountsRaw) : [];
-
-      if (accounts.some((a) => a.email.toLowerCase() === cleanEmail)) {
-        return { error: 'Este e-mail já está cadastrado. Alterne para a aba "Já tenho conta" para entrar.' };
-      }
-
-      const pwdHash = await hashPassword(password);
-      const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const newAccount: StoredAccount = {
-        id: newUserId,
-        email: cleanEmail,
-        name: name?.trim() || cleanEmail.split('@')[0],
-        passwordHash: pwdHash,
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { full_name: name?.trim() || email.split('@')[0] },
+      },
+    });
+    if (error) return { error: error.message };
+    if (data.user) {
+      const u: UserProfile = {
+        id: data.user.id,
+        email: data.user.email || '',
+        full_name: name?.trim() || data.user.email?.split('@')[0],
       };
-
-      accounts.push(newAccount);
-      localStorage.setItem('finance_accounts_db', JSON.stringify(accounts));
-
-      // Garante que o novo usuário comece 100% ZERADO (sem registros fictícios)
-      localStorage.setItem(`finance_tx_${newUserId}`, JSON.stringify([]));
-      localStorage.setItem(`finance_inst_${newUserId}`, JSON.stringify([]));
-      localStorage.setItem(`finance_plans_${newUserId}`, JSON.stringify({}));
-
-      const loggedUser = { id: newAccount.id, email: newAccount.email, full_name: newAccount.name };
-      localStorage.setItem('finance_current_user', JSON.stringify(loggedUser));
-      setUser(loggedUser);
-      return { message: 'Conta cadastrada com sucesso com criptografia de ponta a ponta!' };
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name },
-        },
-      });
-      if (error) return { error: error.message };
-      return { message: 'Cadastro realizado com sucesso! Verifique seu e-mail para confirmar a conta.' };
+      setUser(u);
+      localStorage.setItem('finance_user_session', JSON.stringify(u));
     }
+    return { message: 'Conta criada e sincronizada com sucesso!' };
   };
 
   const logout = async () => {
-    if (isMockMode) {
-      localStorage.removeItem('finance_current_user');
-      setUser(null);
-    } else {
-      await supabase.auth.signOut();
-      setUser(null);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    localStorage.removeItem('finance_user_session');
+    localStorage.removeItem('finance_tx_cache');
+    localStorage.removeItem('finance_inst_cache');
+    localStorage.removeItem('finance_plans_cache');
   };
 
   const addTransaction = async (txData: Omit<Transaction, 'id' | 'user_id'>) => {
     if (!user) return;
-    const newTx: Transaction = {
+    const newTx = {
       ...txData,
-      id: isMockMode ? `tx_${Date.now()}` : undefined as any,
       user_id: user.id,
-      created_at: new Date().toISOString(),
     };
 
-    if (isMockMode) {
-      const updated = [newTx, ...transactions];
-      setTransactions(updated);
-      localStorage.setItem(`finance_tx_${user.id}`, JSON.stringify(updated));
+    const { data, error } = await supabase.from('transactions').insert([newTx]).select().single();
+    if (!error && data) {
+      setTransactions((prev) => [data, ...prev]);
     } else {
-      const { data, error } = await supabase.from('transactions').insert([newTx]).select().single();
-      if (!error && data) {
-        setTransactions([data, ...transactions]);
-      }
+      console.error('Erro ao adicionar transação:', error);
     }
   };
 
   const updateTransaction = async (id: string, txData: Partial<Transaction>) => {
     if (!user) return;
-    if (isMockMode) {
-      const updated = transactions.map((t) => (t.id === id ? { ...t, ...txData } : t));
-      setTransactions(updated);
-      localStorage.setItem(`finance_tx_${user.id}`, JSON.stringify(updated));
-    } else {
-      const { data, error } = await supabase.from('transactions').update(txData).eq('id', id).select().single();
-      if (!error && data) {
-        setTransactions(transactions.map((t) => (t.id === id ? data : t)));
-      }
+    const { data, error } = await supabase.from('transactions').update(txData).eq('id', id).select().single();
+    if (!error && data) {
+      setTransactions((prev) => prev.map((t) => (t.id === id ? data : t)));
     }
   };
 
   const deleteTransaction = async (id: string) => {
     if (!user) return;
-    if (isMockMode) {
-      const updated = transactions.filter((t) => t.id !== id);
-      setTransactions(updated);
-      localStorage.setItem(`finance_tx_${user.id}`, JSON.stringify(updated));
-    } else {
-      await supabase.from('transactions').delete().eq('id', id);
-      setTransactions(transactions.filter((t) => t.id !== id));
-    }
+    await supabase.from('transactions').delete().eq('id', id);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
   const addInstallment = async (instData: Omit<InstallmentPurchase, 'id' | 'user_id'>) => {
     if (!user) return;
-    const newInst: InstallmentPurchase = {
+    const newInst = {
       ...instData,
-      id: isMockMode ? `inst_${Date.now()}` : undefined as any,
       user_id: user.id,
-      created_at: new Date().toISOString(),
     };
 
-    if (isMockMode) {
-      const updated = [newInst, ...installments];
-      setInstallments(updated);
-      localStorage.setItem(`finance_inst_${user.id}`, JSON.stringify(updated));
-    } else {
-      const { data, error } = await supabase.from('installments').insert([newInst]).select().single();
-      if (!error && data) {
-        setInstallments([data, ...installments]);
-      }
+    const { data, error } = await supabase.from('installments').insert([newInst]).select().single();
+    if (!error && data) {
+      setInstallments((prev) => [data, ...prev]);
     }
   };
 
   const updateInstallment = async (id: string, instData: Partial<InstallmentPurchase>) => {
     if (!user) return;
-    if (isMockMode) {
-      const updated = installments.map((i) => (i.id === id ? { ...i, ...instData } : i));
-      setInstallments(updated);
-      localStorage.setItem(`finance_inst_${user.id}`, JSON.stringify(updated));
-    } else {
-      const { data, error } = await supabase.from('installments').update(instData).eq('id', id).select().single();
-      if (!error && data) {
-        setInstallments(installments.map((i) => (i.id === id ? data : i)));
-      }
+    const { data, error } = await supabase.from('installments').update(instData).eq('id', id).select().single();
+    if (!error && data) {
+      setInstallments((prev) => prev.map((i) => (i.id === id ? data : i)));
     }
   };
 
   const deleteInstallment = async (id: string) => {
     if (!user) return;
-    if (isMockMode) {
-      const updated = installments.filter((i) => i.id !== id);
-      setInstallments(updated);
-      localStorage.setItem(`finance_inst_${user.id}`, JSON.stringify(updated));
-    } else {
-      await supabase.from('installments').delete().eq('id', id);
-      setInstallments(installments.filter((i) => i.id !== id));
-    }
+    await supabase.from('installments').delete().eq('id', id);
+    setInstallments((prev) => prev.filter((i) => i.id !== id));
   };
 
   const saveMonthlyPlan = async (plan: MonthlyPlan) => {
     if (!user) return;
     const planToSave = { ...plan, user_id: user.id };
 
-    if (isMockMode) {
-      const updatedPlans = { ...monthlyPlans, [plan.month_year]: planToSave };
-      setMonthlyPlans(updatedPlans);
-      localStorage.setItem(`finance_plans_${user.id}`, JSON.stringify(updatedPlans));
-    } else {
-      const { data, error } = await supabase
-        .from('monthly_plans')
-        .upsert(planToSave, { onConflict: 'user_id,month_year' })
-        .select()
-        .single();
-      if (!error && data) {
-        setMonthlyPlans({ ...monthlyPlans, [plan.month_year]: data });
-      }
+    // Atualização otimista imediata na interface
+    setMonthlyPlans((prev) => ({ ...prev, [plan.month_year]: planToSave }));
+
+    const { data, error } = await supabase
+      .from('monthly_plans')
+      .upsert(planToSave, { onConflict: 'user_id,month_year' })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setMonthlyPlans((prev) => ({ ...prev, [plan.month_year]: data }));
+    } else if (error) {
+      console.error('Erro ao salvar plano mensal no Supabase:', error);
     }
   };
 
