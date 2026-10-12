@@ -243,6 +243,10 @@ export const MonthPlanView: React.FC = () => {
     setFixedItems(fixedItems.map((i) => (i.id === id ? { ...i, amount } : i)));
   };
 
+  const handleUpdateFixedName = (id: string, name: string) => {
+    setFixedItems(fixedItems.map((i) => (i.id === id ? { ...i, name } : i)));
+  };
+
   const handleAddVar = () => {
     if (!newVarName) return;
     const amount = parseFloat(newVarAmount.replace(',', '.')) || 0;
@@ -257,6 +261,10 @@ export const MonthPlanView: React.FC = () => {
 
   const handleUpdateVar = (id: string, amount: number) => {
     setVariableItems(variableItems.map((i) => (i.id === id ? { ...i, amount } : i)));
+  };
+
+  const handleUpdateVarName = (id: string, name: string) => {
+    setVariableItems(variableItems.map((i) => (i.id === id ? { ...i, name } : i)));
   };
 
   const handleAddSeas = () => {
@@ -676,23 +684,34 @@ export const MonthPlanView: React.FC = () => {
             {fixedItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between gap-3 p-3 bg-slate-950/70 border border-slate-800 rounded-2xl"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl"
               >
-                <span className="text-xs sm:text-sm font-bold text-slate-200 flex-1">{item.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">R$</span>
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0"></span>
+                  <input
+                    type="text"
+                    value={item.name}
+                    onChange={(e) => handleUpdateFixedName(item.id, e.target.value)}
+                    placeholder="Nome da conta (ex: Aluguel, Luz...)"
+                    className="w-full bg-transparent border-b border-transparent hover:border-slate-700 focus:border-rose-500 px-1.5 py-1 text-xs sm:text-sm font-bold text-white focus:outline-none transition-colors"
+                    title="Clique para editar o nome da conta"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 shrink-0">
+                  <span className="text-xs text-slate-500 font-semibold">R$</span>
                   <input
                     type="number"
                     step="0.01"
                     value={item.amount || ''}
                     placeholder="0,00"
                     onChange={(e) => handleUpdateFixed(item.id, parseFloat(e.target.value) || 0)}
-                    className="w-24 sm:w-32 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs sm:text-sm text-right text-white font-bold focus:outline-none focus:border-rose-500"
+                    className="w-28 sm:w-32 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs sm:text-sm text-right text-rose-300 font-bold focus:outline-none focus:border-rose-500"
+                    title="Valor da conta fixa"
                   />
                   <button
                     type="button"
                     onClick={() => handleRemoveFixed(item.id)}
-                    className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10 cursor-pointer"
                     title="Remover conta"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -752,23 +771,35 @@ export const MonthPlanView: React.FC = () => {
             {variableItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between gap-3 p-3 bg-slate-950/70 border border-slate-800 rounded-2xl"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl"
               >
-                <span className="text-xs sm:text-sm font-bold text-slate-200 flex-1">{item.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">R$</span>
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+                  <input
+                    type="text"
+                    value={item.name}
+                    onChange={(e) => handleUpdateVarName(item.id, e.target.value)}
+                    placeholder="Nome do gasto variável (ex: Supermercado, Transporte...)"
+                    className="w-full bg-transparent border-b border-transparent hover:border-slate-700 focus:border-amber-500 px-1.5 py-1 text-xs sm:text-sm font-bold text-white focus:outline-none transition-colors"
+                    title="Clique para editar o nome"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 shrink-0">
+                  <span className="text-xs text-slate-500 font-semibold">R$</span>
                   <input
                     type="number"
                     step="0.01"
                     value={item.amount || ''}
                     placeholder="0,00"
                     onChange={(e) => handleUpdateVar(item.id, parseFloat(e.target.value) || 0)}
-                    className="w-24 sm:w-32 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs sm:text-sm text-right text-white font-bold focus:outline-none focus:border-amber-500"
+                    className="w-28 sm:w-32 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs sm:text-sm text-right text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                    title="Valor do gasto"
                   />
                   <button
                     type="button"
                     onClick={() => handleRemoveVar(item.id)}
-                    className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10 cursor-pointer"
+                    title="Remover"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

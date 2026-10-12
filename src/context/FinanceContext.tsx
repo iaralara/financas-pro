@@ -392,18 +392,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getPlanForMonth = (month: string): MonthlyPlan => {
     if (monthlyPlans[month]) return monthlyPlans[month];
+
+    // Se o plano deste mês ainda não foi salvo, buscar as contas fixas do mês mais recente
+    const allPlanKeys = Object.keys(monthlyPlans).sort().reverse();
+    let templateFixedItems = undefined;
+    let templateIncomeItems = undefined;
+    let templateGoals = undefined;
+    let templateDistribution = { essential: 55, bills_goals: 30, free: 10, education: 5 };
+
+    for (const key of allPlanKeys) {
+      const p = monthlyPlans[key];
+      if (p.fixed_items && p.fixed_items.length > 0 && !templateFixedItems) {
+        templateFixedItems = p.fixed_items;
+      }
+      if (p.income_items && p.income_items.length > 0 && !templateIncomeItems) {
+        templateIncomeItems = p.income_items;
+      }
+      if (p.goals && p.goals.length > 0 && !templateGoals) {
+        templateGoals = p.goals;
+      }
+      if (p.distribution_percentages) {
+        templateDistribution = p.distribution_percentages;
+      }
+    }
+
     return {
       user_id: user?.id || '',
       month_year: month,
       available_money: 0,
-      expected_income: 0,
+      expected_income: templateIncomeItems?.reduce((s, i) => s + (Number(i.amount) || 0), 0) || 0,
       planned_investment: 0,
-      fixed_expenses: 0,
+      fixed_expenses: templateFixedItems?.reduce((s, i) => s + (Number(i.amount) || 0), 0) || 0,
       expected_expenses: 0,
       installments_due: 0,
       seasonal_expenses: 0,
       goals_text: '',
-      distribution_percentages: { essential: 55, bills_goals: 30, free: 10, education: 5 },
+      distribution_percentages: templateDistribution,
+      fixed_items: templateFixedItems,
+      income_items: templateIncomeItems,
+      goals: templateGoals,
     };
   };
 
