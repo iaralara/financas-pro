@@ -37,9 +37,17 @@ export const DashboardView: React.FC<{
     .filter((t) => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalExpense = currentMonthTxs
+  // Contas fixas marcadas como pagas no planejamento do mês
+  const fixedPaidFromPlan = (currentPlan.fixed_items || [])
+    .filter((item) => item.paid)
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+  const rawExpense = currentMonthTxs
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
+
+  // Total de despesas inclui os lançamentos avulsos + as contas fixas marcadas como pagas
+  const totalExpense = rawExpense + fixedPaidFromPlan;
 
   const totalInvested = currentMonthTxs
     .filter((t) => t.type === 'investment')
@@ -95,6 +103,14 @@ export const DashboardView: React.FC<{
     .filter((t) => t.type === 'expense')
     .forEach((t) => {
       categoryMap[t.category] = (categoryMap[t.category] || 0) + t.amount;
+    });
+
+  // Somar também as contas fixas pagas no gráfico
+  (currentPlan.fixed_items || [])
+    .filter((item) => item.paid && (Number(item.amount) || 0) > 0)
+    .forEach((item) => {
+      const cat = 'Contas Fixas / Moradia';
+      categoryMap[cat] = (categoryMap[cat] || 0) + Number(item.amount);
     });
 
   const pieData = Object.entries(categoryMap).map(([name, value]) => ({

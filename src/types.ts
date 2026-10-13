@@ -7,6 +7,8 @@ export interface PlannedItem {
   name: string;
   amount: number;
   source?: string; // De onde vem ou observação
+  paid?: boolean; // Se a conta já foi paga no mês
+  paid_at?: string; // Data em que foi marcada como paga
 }
 
 export interface IncomePlanItem {

@@ -6,6 +6,8 @@ import {
   Calendar,
   AlertTriangle,
   CheckCircle,
+  CheckCircle2,
+  Circle,
   HelpCircle,
   TrendingDown,
   ArrowRight,
@@ -173,6 +175,8 @@ export const MonthPlanView: React.FC = () => {
   // Cálculos dinâmicos a partir da soma dos itens especificados
   const totalIncomeCalculated = incomeItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
   const totalFixedCalculated = fixedItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+  const totalFixedPaid = fixedItems.filter((item) => item.paid).reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+  const totalFixedPending = Math.max(0, totalFixedCalculated - totalFixedPaid);
   const totalVariableCalculated = variableItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
   const totalSeasonalCalculated = seasonalItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
 
@@ -286,6 +290,22 @@ export const MonthPlanView: React.FC = () => {
 
   const handleUpdateFixedName = (id: string, name: string) => {
     const updated = fixedItems.map((i) => (i.id === id ? { ...i, name } : i));
+    setFixedItems(updated);
+    autoPersistPlan({ fixed_items: updated });
+  };
+
+  const handleToggleFixedPaid = (id: string) => {
+    const updated = fixedItems.map((i) => {
+      if (i.id === id) {
+        const nextPaid = !i.paid;
+        return {
+          ...i,
+          paid: nextPaid,
+          paid_at: nextPaid ? new Date().toISOString() : undefined,
+        };
+      }
+      return i;
+    });
     setFixedItems(updated);
     autoPersistPlan({ fixed_items: updated });
   };
@@ -733,12 +753,22 @@ export const MonthPlanView: React.FC = () => {
                 3. Contas Fixas Detalhadas (Especifique Cada Uma)
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Dê nome a cada conta: aluguel, luz, condomínio, internet, água, escola, etc.
+                Dê nome a cada conta e marque como paga quando quitar: aluguel, luz, condomínio, internet, água...
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-slate-400 block">Total Contas Fixas:</span>
-              <span className="text-base font-black text-rose-400">{formatCurrency(totalFixedCalculated)}</span>
+            <div className="flex items-center gap-3 text-right">
+              <div className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                <span className="text-[10px] text-emerald-400 font-bold block">Pagas:</span>
+                <span className="text-xs sm:text-sm font-black text-emerald-300">{formatCurrency(totalFixedPaid)}</span>
+              </div>
+              <div className="px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 rounded-xl">
+                <span className="text-[10px] text-rose-400 font-bold block">A Pagar:</span>
+                <span className="text-xs sm:text-sm font-black text-rose-300">{formatCurrency(totalFixedPending)}</span>
+              </div>
+              <div className="pl-1">
+                <span className="text-[10px] text-slate-400 block">Total Previsto:</span>
+                <span className="text-sm sm:text-base font-black text-white">{formatCurrency(totalFixedCalculated)}</span>
+              </div>
             </div>
           </div>
 
@@ -747,16 +777,44 @@ export const MonthPlanView: React.FC = () => {
             {fixedItems.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl"
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 border rounded-2xl transition-all ${
+                  item.paid
+                    ? 'bg-emerald-950/20 border-emerald-500/40 shadow-xs'
+                    : 'bg-slate-950/70 border-slate-800'
+                }`}
               >
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0"></span>
+                <div className="flex-1 flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFixedPaid(item.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      item.paid
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                    }`}
+                    title={item.paid ? 'Conta marcada como PAGA. Clique para desmarcar.' : 'Clique para marcar esta conta como PAGA.'}
+                  >
+                    {item.paid ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>Paga</span>
+                      </>
+                    ) : (
+                      <>
+                        <Circle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Pendente</span>
+                      </>
+                    )}
+                  </button>
+
                   <input
                     type="text"
                     value={item.name}
                     onChange={(e) => handleUpdateFixedName(item.id, e.target.value)}
                     placeholder="Nome da conta (ex: Aluguel, Luz...)"
-                    className="w-full bg-transparent border-b border-transparent hover:border-slate-700 focus:border-rose-500 px-1.5 py-1 text-xs sm:text-sm font-bold text-white focus:outline-none transition-colors"
+                    className={`w-full bg-transparent border-b border-transparent hover:border-slate-700 focus:border-rose-500 px-1.5 py-1 text-xs sm:text-sm font-bold focus:outline-none transition-colors ${
+                      item.paid ? 'text-emerald-200 line-through/40' : 'text-white'
+                    }`}
                     title="Clique para editar o nome da conta"
                   />
                 </div>
@@ -768,7 +826,11 @@ export const MonthPlanView: React.FC = () => {
                     value={item.amount || ''}
                     placeholder="0,00"
                     onChange={(e) => handleUpdateFixed(item.id, parseFloat(e.target.value) || 0)}
-                    className="w-28 sm:w-32 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs sm:text-sm text-right text-rose-300 font-bold focus:outline-none focus:border-rose-500"
+                    className={`w-28 sm:w-32 px-3 py-1.5 border rounded-xl text-xs sm:text-sm text-right font-bold focus:outline-none ${
+                      item.paid
+                        ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300 focus:border-emerald-500'
+                        : 'bg-slate-800 border-slate-700 text-rose-300 focus:border-rose-500'
+                    }`}
                     title="Valor da conta fixa"
                   />
                   <button
