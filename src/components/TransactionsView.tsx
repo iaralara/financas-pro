@@ -233,13 +233,20 @@ export const TransactionsView: React.FC = () => {
                           Origem: {tx.source}
                         </span>
                       )}
+                      {tx.notes && tx.notes.includes('[Conta Fixa:') && (
+                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-bold rounded-md text-[10px]">
+                          Conta Fixa Paga
+                        </span>
+                      )}
                       <span className="font-medium text-slate-300">{tx.category}</span>
                       <span>•</span>
                       <span>{formatDate(tx.date)}</span>
                       <span>•</span>
                       <span className="text-slate-500">{tx.payment_method}</span>
                     </div>
-                    {tx.notes && <p className="text-[10px] text-slate-500 mt-0.5">{tx.notes}</p>}
+                    {tx.notes && !tx.notes.includes('[Conta Fixa:') && (
+                      <p className="text-[10px] text-slate-500 mt-0.5">{tx.notes}</p>
+                    )}
                   </div>
                 </div>
 

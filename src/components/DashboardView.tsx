@@ -38,15 +38,23 @@ export const DashboardView: React.FC<{
     .reduce((sum, t) => sum + t.amount, 0);
 
   // Contas fixas marcadas como pagas no planejamento do mês
+  // (Caso ainda não exista transação correspondente no extrato, soma-se para não ficar de fora)
   const fixedPaidFromPlan = (currentPlan.fixed_items || [])
-    .filter((item) => item.paid)
+    .filter((item) => {
+      if (!item.paid) return false;
+      const fixedTag = `[Conta Fixa: ${item.id}]`;
+      const alreadyInTx = currentMonthTxs.some(
+        (t) => t.type === 'expense' && t.notes && t.notes.includes(fixedTag)
+      );
+      return !alreadyInTx;
+    })
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
   const rawExpense = currentMonthTxs
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  // Total de despesas inclui os lançamentos avulsos + as contas fixas marcadas como pagas
+  // Total de despesas inclui as transações do extrato + contas fixas pagas que não estejam duplicadas
   const totalExpense = rawExpense + fixedPaidFromPlan;
 
   const totalInvested = currentMonthTxs
@@ -105,9 +113,16 @@ export const DashboardView: React.FC<{
       categoryMap[t.category] = (categoryMap[t.category] || 0) + t.amount;
     });
 
-  // Somar também as contas fixas pagas no gráfico
+  // Somar também as contas fixas pagas no gráfico apenas se ainda não estiverem em transações
   (currentPlan.fixed_items || [])
-    .filter((item) => item.paid && (Number(item.amount) || 0) > 0)
+    .filter((item) => {
+      if (!item.paid || !(Number(item.amount) > 0)) return false;
+      const fixedTag = `[Conta Fixa: ${item.id}]`;
+      const alreadyInTx = currentMonthTxs.some(
+        (t) => t.type === 'expense' && t.notes && t.notes.includes(fixedTag)
+      );
+      return !alreadyInTx;
+    })
     .forEach((item) => {
       const cat = 'Contas Fixas / Moradia';
       categoryMap[cat] = (categoryMap[cat] || 0) + Number(item.amount);

@@ -25,7 +25,16 @@ import {
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 export const MonthPlanView: React.FC = () => {
-  const { activeMonth, setActiveMonth, getPlanForMonth, saveMonthlyPlan, installments } = useData();
+  const {
+    activeMonth,
+    setActiveMonth,
+    getPlanForMonth,
+    saveMonthlyPlan,
+    installments,
+    transactions,
+    addTransaction,
+    deleteTransaction,
+  } = useData();
 
   const currentPlan = getPlanForMonth(activeMonth);
 
@@ -294,20 +303,55 @@ export const MonthPlanView: React.FC = () => {
     autoPersistPlan({ fixed_items: updated });
   };
 
-  const handleToggleFixedPaid = (id: string) => {
+  const handleToggleFixedPaid = async (id: string) => {
+    const itemTarget = fixedItems.find((i) => i.id === id);
+    if (!itemTarget) return;
+
+    const nextPaid = !itemTarget.paid;
+    const nowIso = new Date().toISOString();
+    const todayDate = nowIso.split('T')[0];
+    const fixedTag = `[Conta Fixa: ${id}]`;
+
     const updated = fixedItems.map((i) => {
       if (i.id === id) {
-        const nextPaid = !i.paid;
         return {
           ...i,
           paid: nextPaid,
-          paid_at: nextPaid ? new Date().toISOString() : undefined,
+          paid_at: nextPaid ? nowIso : undefined,
         };
       }
       return i;
     });
+
     setFixedItems(updated);
     autoPersistPlan({ fixed_items: updated });
+
+    if (nextPaid) {
+      // Criar lançamento no Extrato se a conta tiver valor
+      if (Number(itemTarget.amount) > 0) {
+        await addTransaction({
+          description: `${itemTarget.name || 'Conta Fixa'}`,
+          amount: Number(itemTarget.amount),
+          type: 'expense',
+          category: 'Contas Fixas / Moradia',
+          date: todayDate.startsWith(activeMonth) ? todayDate : `${activeMonth}-05`,
+          payment_method: 'Boleto',
+          notes: `Pago pelo Planejamento Mensal ${fixedTag}`,
+        });
+      }
+    } else {
+      // Se desmarcou como paga, remove a despesa correspondente do extrato
+      const existingTx = transactions.find(
+        (t) =>
+          t.type === 'expense' &&
+          t.notes &&
+          t.notes.includes(fixedTag) &&
+          t.date.startsWith(activeMonth)
+      );
+      if (existingTx) {
+        await deleteTransaction(existingTx.id);
+      }
+    }
   };
 
   const handleAddVar = () => {
